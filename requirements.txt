@@ -1,4 +1,4 @@
-numpy==2 . 4 . 1
-pandas==2 . 3 .3
+numpy==2.4.1
+pandas==2.3.3
 streamlit==1.53.0
-matplot1ib==3.10.8
+matplotlib==3.10.8
