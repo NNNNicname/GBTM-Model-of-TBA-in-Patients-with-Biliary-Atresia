@@ -23,32 +23,28 @@ try:
     
     # 1. 读取组数并强制转为整数，你的模型固定是5组
     n_groups = int(model_data['ng'])  
-    # 2. 读取系数，强制转数组 + 维度校验 + 终极兜底重构
+    # 2. 读取系数，强制转数组 + 维度校验
     param_matrix = np.array(model_data['coefficients'])
     
     # ========== 核心修复：维度校验+强制重构 ==========
-    # 如果数组是0维/1维/维度不对 → 直接赋值为【5行4列】的标准系数矩阵（你的GBTM固定结构）
+    # 【5行4列】的标准系数矩阵（GBTM固定结构）
     if param_matrix.ndim != 2 or param_matrix.shape[0] != n_groups or param_matrix.shape[1] !=4:
-        st.warning("✅ 自动修正模型参数格式（5组×4项系数）")
+        st.warning("✅ 模型参数格式异常，使用默认标准参数矩阵")
         # 格式：5行=5个轨迹组，4列=截距、线性项、二次项、三次项 固定4个参数
-        param_matrix = np.array([
-            [120.5, -25.3, 3.2, -0.5],  # 第1组参数
-            [280.2, -42.1, 5.6, -0.8],  # 第2组参数
-            [450.7, -38.5, 4.1, -0.3],  # 第3组参数
-            [190.3, -55.2, 7.8, -1.2],  # 第4组参数
-            [320.9, 18.4, -2.5, 0.4]    # 第5组参数
-        ])
-        # 强制修正组数为5，和矩阵匹配
-        n_groups = 5
+        param_matrix = [
+            [205.862,  -140.332,  54.958,   -7.189],  # 第1组 三次多项式
+            [-4.943,    253.300, -146.564,  26.698],  # 第2组 三次多项式
+            [145.1073, -43.2551, 13.4262,    0.0],    # 第3组 二次多项式(β3=0) ✔️ 补0
+            [318.078,  -207.331,  84.979,  -11.307],  # 第4组 三次多项式
+            [81.980,    154.438, -55.981,    7.915]   # 第5组 三次多项式
+        ]
+        param_matrix = np.array(param_matrix)  # 强制转为numpy数组（关键！原代码漏了这步）
+        n_groups = 5  
 
 except Exception as e:
     st.error(f"模型加载失败: {e}")
     st.stop()
-    
-    
-    
-    
-    
+
 # 定义轨迹预测函数
 def predict_gbtm_trajectory(time_points, group_params):
     intercept, linear, quadratic, cubic = group_params
@@ -79,7 +75,7 @@ def calculate_group_probabilities(tba_values, time_points, param_matrix):
         probabilities = np.zeros(n_groups)
         probabilities[np.argmin(distances)] = 1.0
     else:
-        weights = 1 / (distances + 1e-10)
+        weights = 1 / (distances + 1e-10)  # 加小值避免除0
         probabilities = weights / np.sum(weights)
     
     return probabilities
@@ -87,16 +83,18 @@ def calculate_group_probabilities(tba_values, time_points, param_matrix):
 # Streamlit用户界面
 st.title("基于TBA轨迹的胆道闭锁患儿预后预测模型")
 
-# 侧边栏 - 输入参数
-st.sidebar.header("患者TBA测量数据输入")
-
-# 时间点标签
-time_labels = ["术前(T0)", "术后2周(T1)", "术后1月(T2)", "术后3月(T3)"]
+# ====================== 关键修改1：统一时间点定义（仅定义1次，避免冲突） ======================
+# 时间点配置（全局统一）
+time_labels = ["术前(baseline)", "术后2周(2 weeks)", "术后1月(1 month)", "术后3月(3 months)"]  # 统一中文标签
+time_points_original = np.array([1, 2, 3, 4])  # 建模用的时间点（1-4，和R语言一致）
+time_points_smooth = np.linspace(1, 4, 100)    # 绘图用的平滑时间点
 n_time_points = len(time_labels)
 
-# 创建输入框
+# 侧边栏 - 输入参数
+st.sidebar.header("患者TBA测量数据输入")
 st.sidebar.subheader("请输入各时间点TBA值 (μmol/L)")
 
+# 创建输入框（用统一的time_labels）
 tba_values = []
 for i, label in enumerate(time_labels):
     value = st.sidebar.number_input(
@@ -115,40 +113,37 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     st.subheader("TBA轨迹可视化")
-    
-    # 生成时间点
-    time_points = np.arange(n_time_points)
-    
-    # 创建图表
+    # 创建画布
     fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # 绘制患者实际TBA轨迹
-    ax.plot(time_points, tba_values, 'bo-', linewidth=2, markersize=8, label='患者实际TBA值')
-    
-    # 预测并绘制每个组的轨迹
-    colors = ['red', 'green', 'blue', 'orange', 'purple']
+
+    # 绘制【患者实际TBA轨迹】- 4个离散点+蓝色折线
+    ax.plot(time_points_original, tba_values, 'bo-', linewidth=2, markersize=8, label='患者实际TBA值', zorder=5)
+
+    # 绘制【5组GBTM背景曲线】
+    colors = ['#1F77B4', '#2CA02C', '#9467BD', '#E377C2', '#FF7F0E']  # R语言配色
     group_names = [f"第{i+1}组" for i in range(n_groups)]
-    
     all_predictions = []
+
     for g in range(n_groups):
         params = param_matrix[g]
-        predicted = predict_gbtm_trajectory(time_points, params)
-        all_predictions.append(predicted)
-        
-        ax.plot(time_points, predicted, 
-                color=colors[g % len(colors)], 
-                linestyle='--', 
+        predicted_smooth = predict_gbtm_trajectory(time_points_smooth, params)
+        all_predictions.append(predicted_smooth)
+        ax.plot(time_points_smooth, predicted_smooth,
+                color=colors[g],
+                linestyle='--',
+                linewidth=1.5,
                 alpha=0.7,
                 label=f'{group_names[g]}轨迹')
-    
-    ax.set_xlabel('时间点', fontsize=12)
+
+    # 坐标轴配置（用统一的time_labels）
+    ax.set_xlabel('随访时间', fontsize=12)
     ax.set_ylabel('TBA值 (μmol/L)', fontsize=12)
-    ax.set_title('TBA轨迹对比', fontsize=14)
-    ax.set_xticks(time_points)
-    ax.set_xticklabels(time_labels, rotation=45)
-    ax.legend()
+    ax.set_title('TBA轨迹对比 (GBTM 5组模型)', fontsize=14)
+    ax.set_xticks(time_points_original)
+    ax.set_xticklabels(time_labels, rotation=0)  # 用统一的中文标签
+    ax.legend(loc='best')
     ax.grid(True, alpha=0.3)
-    
+
     st.pyplot(fig)
 
 with col2:
@@ -157,8 +152,8 @@ with col2:
     # 计算属于各组的概率
     if st.sidebar.button("开始预测"):
         with st.spinner("正在计算..."):
-            # 计算概率
-            probabilities = calculate_group_probabilities(tba_values, time_points, param_matrix)
+            # ====================== 关键修改2：传递正确的时间点参数 ======================
+            probabilities = calculate_group_probabilities(tba_values, time_points_original, param_matrix)
             
             # 找到最可能的组
             most_likely_group = np.argmax(probabilities) + 1
@@ -174,8 +169,6 @@ with col2:
             
             # 临床建议
             st.subheader("临床建议")
-            
-            # 根据分组提供建议
             advice_dict = {
                 1: "第1组（低水平稳定组）: TBA水平较低且稳定，预后良好。建议定期监测，当前治疗方案有效。",
                 2: "第2组（中等水平稳定组）: TBA水平中等，保持稳定。需要继续当前治疗并密切观察。",
@@ -192,33 +185,16 @@ with col2:
 
 # 添加数据摘要
 st.subheader("数据摘要")
-
-# 创建数据摘要表
+# 创建数据摘要表（用统一的time_labels）
 summary_data = {
     "时间点": time_labels,
     "TBA值 (μmol/L)": tba_values
 }
-
 summary_df = pd.DataFrame(summary_data)
 st.dataframe(summary_df, use_container_width=True)
 
-
-
-
-
+# 运行检查
 import sys
 if "streamlit" not in sys.modules:
-    st.warning("请使用 'streamlit run filename.py' 命令运行此应用")
+    st.warning("请使用 'streamlit run app.py' 命令运行此应用")
     st.stop()
-
-
-
-
-
-
-
-
-
-
-
-
