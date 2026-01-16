@@ -1,11 +1,17 @@
-# 加载GBTM模型 - 【最终终极完美修复版】解决所有报错：KeyError+float下标+数组维度不足
+import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif'] = ['WenQuanYi Zen Hei', 'SimHei', 'Arial Unicode MS']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.family'] = 'sans-serif'
+
+
+# 加载GBTM模型 
 import numpy as np
 import pandas as pd
 import pickle
 import streamlit as st
 import matplotlib.pyplot as plt
 
-# ========== 先加这两行解决中文乱码，必加 ==========
+# ========== 解决中文乱码 ==========
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 中文正常显示
 plt.rcParams['axes.unicode_minus'] = False    # 负号正常显示
 # =================================================
@@ -21,12 +27,12 @@ try:
     with open('gbtm5_model.pkl', 'rb') as f:
         model_data = pickle.load(f)
     
-    # 1. 读取组数并强制转为整数，你的模型固定是5组
+    # 1. 读取组数并强制转为整数，5组
     n_groups = int(model_data['ng'])  
     # 2. 读取系数，强制转数组 + 维度校验
     param_matrix = np.array(model_data['coefficients'])
     
-    # ========== 核心修复：维度校验+强制重构 ==========
+    # ========== 修复：维度校验+强制重构 ==========
     # 【5行4列】的标准系数矩阵（GBTM固定结构）
     if param_matrix.ndim != 2 or param_matrix.shape[0] != n_groups or param_matrix.shape[1] !=4:
         st.warning("✅ 第4版")
@@ -34,11 +40,11 @@ try:
         param_matrix = [
             [205.862,  -140.332,  54.958,   -7.189],  # 第1组 三次多项式
             [-4.943,    253.300, -146.564,  26.698],  # 第2组 三次多项式
-            [145.1073, -43.2551, 13.4262,    0.0],    # 第3组 二次多项式(β3=0) ✔️ 补0
+            [145.1073, -43.2551, 13.4262,    0.0],    # 第3组 二次多项式(β3=0) 
             [318.078,  -207.331,  84.979,  -11.307],  # 第4组 三次多项式
             [81.980,    154.438, -55.981,    7.915]   # 第5组 三次多项式
         ]
-        param_matrix = np.array(param_matrix)  # 强制转为numpy数组（关键！原代码漏了这步）
+        param_matrix = np.array(param_matrix)  # 强制转为numpy数组
         n_groups = 5  
 
 except Exception as e:
@@ -83,7 +89,7 @@ def calculate_group_probabilities(tba_values, time_points, param_matrix):
 # Streamlit用户界面
 st.title("基于TBA轨迹的胆道闭锁患儿预后预测模型")
 
-# ====================== 关键修改1：统一时间点定义（仅定义1次，避免冲突） ======================
+# ====================== 关键修改1：统一时间点定义 ======================
 # 时间点配置（全局统一）
 time_labels = ["术前(baseline)", "术后2周(2 weeks)", "术后1月(1 month)", "术后3月(3 months)"]  # 统一中文标签
 time_points_original = np.array([1, 2, 3, 4])  # 建模用的时间点（1-4，和R语言一致）
@@ -152,7 +158,7 @@ with col2:
     # 计算属于各组的概率
     if st.sidebar.button("开始预测"):
         with st.spinner("正在计算..."):
-            # ====================== 关键修改2：传递正确的时间点参数 ======================
+            # ====================== 修改2：传递正确的时间点参数 ======================
             probabilities = calculate_group_probabilities(tba_values, time_points_original, param_matrix)
             
             # 找到最可能的组
