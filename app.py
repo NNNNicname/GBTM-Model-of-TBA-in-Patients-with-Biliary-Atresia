@@ -29,7 +29,7 @@ try:
     # ========== 核心修复：维度校验+强制重构 ==========
     # 【5行4列】的标准系数矩阵（GBTM固定结构）
     if param_matrix.ndim != 2 or param_matrix.shape[0] != n_groups or param_matrix.shape[1] !=4:
-        st.warning("✅ 模型参数格式异常，使用默认标准参数矩阵")
+        st.warning("✅ 第4版")
         # 格式：5行=5个轨迹组，4列=截距、线性项、二次项、三次项 固定4个参数
         param_matrix = [
             [205.862,  -140.332,  54.958,   -7.189],  # 第1组 三次多项式
