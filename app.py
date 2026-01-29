@@ -35,7 +35,7 @@ try:
     # ========== Fix: Dimension verification + forced reconstruction ==========
     # Standard coefficient matrix [5 rows x 4 columns] (fixed GBTM structure)
     if param_matrix.ndim != 2 or param_matrix.shape[0] != n_groups or param_matrix.shape[1] !=4:
-        st.warning("✅ Version 4")
+        #st.warning("✅ Version 4")
         # Format: 5 rows = 5 trajectory groups, 4 columns = intercept, linear term, quadratic term, cubic term (fixed 4 parameters)
         param_matrix = [
             [205.862,  -140.332,  54.958,   -7.189],  # Group 1: Cubic polynomial
@@ -87,7 +87,7 @@ def calculate_group_probabilities(tba_values, time_points, param_matrix):
     return probabilities
 
 # Streamlit user interface
-st.title("Prognostic Prediction Model for Biliary Atresia Infants Based on TBA Trajectory")
+st.title("BA-NLS Predictor: An Online Tool for Prognostic Stratification Based on Postoperative TBA Trajectories in Biliary Atresia")
 
 # ====================== Key Modification 1: Globally unified time point definition ======================
 # Time point configuration (globally unified)
@@ -176,13 +176,12 @@ with col2:
             # Clinical recommendations
             st.subheader("Clinical Recommendations")
             advice_dict = {
-                1: "Group 1 (Low-Level Stable Group): TBA levels are low and stable, with a favorable prognosis. Regular monitoring is recommended, and the current treatment regimen is effective.",
-                2: "Group 2 (Medium-Level Stable Group): TBA levels are moderate and stable. Continuation of the current treatment and close observation are required.",
-                3: "Group 3 (High-Level Stable Group): TBA levels are high but stable. Strengthened drug therapy and nutritional support may be needed.",
-                4: "Group 4 (Declining Trend Group): TBA shows a declining trend, indicating effective treatment. Continue the current regimen; the prognosis is good.",
-                5: "Group 5 (Rising Trend Group): TBA shows a rising trend, which requires vigilance. It is recommended to consider adjusting the treatment regimen and enhancing follow-up."
+                1: "Group 1 (Low Baseline Decreasing Group): A standard follow-up protocol may be maintained, with focused monitoring of liver function and growth parameters.",
+                2: "Group 2 (Low Baseline Sharp Increasing Group): Intensified management is indicated with increased follow-up frequency. The timing of liver transplantation should be continuously evaluated during follow-up, with proactive preparation for subsequent liver transplantation assessment when necessary.",
+                3: "Group 3 (Low Baseline Increasing Group): Follow-up intervals should be appropriately shortened and the frequency of endoscopic surveillance enhanced, so as to enable the early detection and management of portal hypertension-related complications.",
+                4: "Group 4 (High Baseline Decreasing Group): A standard follow-up protocol may be maintained, with focused monitoring of liver function and growth parameters.",
+                5: "Group 5 (High Baseline Increasing Group): Close follow-up must be implemented with increased endoscopic surveillance for the proactive mitigation of risks such as variceal bleeding. For this subgroup, priority should be given to the monitoring of liver function, and evaluation for liver transplantation should be promptly initiated in the event of liver function deterioration."
             }
-            
             # Display main recommendations
             if most_likely_group in advice_dict:
                 st.write(advice_dict[most_likely_group])
